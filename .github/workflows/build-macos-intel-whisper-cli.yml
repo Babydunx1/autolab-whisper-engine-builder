@@ -9,7 +9,7 @@ jobs:
     # IMPORTANT:
     # GitHub เปลี่ยน runner บ่อย ทำให้ macos-13 บาง config ใช้ไม่ได้
     # เราลองใช้ macos-12 ซึ่งมักเป็น Intel runner และเสถียรกว่าในหลายช่วง
-    runs-on: macos-12
+    runs-on: macos-14
 
     steps:
       - name: Checkout (builder repo)
