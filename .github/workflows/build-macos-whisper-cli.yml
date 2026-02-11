@@ -1,4 +1,4 @@
-name: Build whisper.cpp macOS (Metal) - whisper-cli
+name: Build whisper.cpp macOS (Metal) - whisper-cli (arm64)
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ jobs:
   build-arm64:
     name: macOS arm64 (Apple Silicon)
     runs-on: macos-14
+
     steps:
       - name: Checkout (builder repo)
         uses: actions/checkout@v4
@@ -39,7 +40,7 @@ jobs:
           cd whisper.cpp
           cmake --build build --config Release --target whisper-cli -j 2
 
-      - name: Prepare artifact
+      - name: Prepare artifact (whisper-cli + ggml-metal.metal)
         run: |
           set -e
           OUT="dist"
@@ -47,102 +48,50 @@ jobs:
           mkdir -p "$OUT/arm64"
           mkdir -p "$OUT/share/whisper-cpp"
 
+          # 1) binary
           if [ -f "whisper.cpp/build/bin/whisper-cli" ]; then
             cp "whisper.cpp/build/bin/whisper-cli" "$OUT/arm64/whisper-cli"
           elif [ -f "whisper.cpp/build/whisper-cli" ]; then
             cp "whisper.cpp/build/whisper-cli" "$OUT/arm64/whisper-cli"
           else
             echo "ERROR: whisper-cli not found after build"
-            find whisper.cpp/build -maxdepth 4 -type f -name "whisper-cli" -print || true
+            find whisper.cpp/build -maxdepth 6 -type f -name "whisper-cli" -print || true
             exit 1
           fi
 
-          if [ -f "whisper.cpp/ggml-metal.metal" ]; then
-            cp "whisper.cpp/ggml-metal.metal" "$OUT/share/whisper-cpp/ggml-metal.metal"
-          else
-            echo "ERROR: ggml-metal.metal not found"
-            find whisper.cpp -maxdepth 4 -type f -name "ggml-metal.metal" -print || true
+          # 2) metal resource (upstream path moved; probe multiple locations)
+          METAL=""
+          CANDIDATES=(
+            "whisper.cpp/ggml/src/ggml-metal/ggml-metal.metal"
+            "whisper.cpp/ggml-metal.metal"
+            "whisper.cpp/ggml/ggml-metal.metal"
+          )
+
+          for p in "${CANDIDATES[@]}"; do
+            if [ -f "$p" ]; then
+              METAL="$p"
+              break
+            fi
+          done
+
+          if [ -z "$METAL" ]; then
+            echo "ERROR: ggml-metal.metal not found. Searching..."
+            find whisper.cpp -maxdepth 8 -type f -name "ggml-metal.metal" -print || true
             exit 1
           fi
+
+          cp "$METAL" "$OUT/share/whisper-cpp/ggml-metal.metal"
 
           chmod +x "$OUT/arm64/whisper-cli"
+
+          echo "== Sanity =="
           file "$OUT/arm64/whisper-cli" || true
+          ls -la "$OUT/arm64/" || true
+          ls -la "$OUT/share/whisper-cpp/" || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: autolab-whisper-macos-arm64
-          path: dist
-          if-no-files-found: error
-
-
-  build-x86_64:
-    name: macOS x86_64 (Intel)
-    runs-on: macos-13
-    steps:
-      - name: Checkout (builder repo)
-        uses: actions/checkout@v4
-
-      - name: Show runner info
-        run: |
-          sw_vers
-          uname -a
-          clang --version
-          cmake --version || true
-
-      - name: Clone whisper.cpp
-        run: |
-          rm -rf whisper.cpp
-          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
-          cd whisper.cpp
-          git rev-parse HEAD
-
-      - name: Configure (Metal enabled)
-        run: |
-          cd whisper.cpp
-          rm -rf build
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DGGML_USE_METAL=ON \
-            -DCMAKE_OSX_ARCHITECTURES=x86_64
-
-      - name: Build whisper-cli
-        run: |
-          cd whisper.cpp
-          cmake --build build --config Release --target whisper-cli -j 2
-
-      - name: Prepare artifact
-        run: |
-          set -e
-          OUT="dist"
-          rm -rf "$OUT"
-          mkdir -p "$OUT/x86_64"
-          mkdir -p "$OUT/share/whisper-cpp"
-
-          if [ -f "whisper.cpp/build/bin/whisper-cli" ]; then
-            cp "whisper.cpp/build/bin/whisper-cli" "$OUT/x86_64/whisper-cli"
-          elif [ -f "whisper.cpp/build/whisper-cli" ]; then
-            cp "whisper.cpp/build/whisper-cli" "$OUT/x86_64/whisper-cli"
-          else
-            echo "ERROR: whisper-cli not found after build"
-            find whisper.cpp/build -maxdepth 4 -type f -name "whisper-cli" -print || true
-            exit 1
-          fi
-
-          if [ -f "whisper.cpp/ggml-metal.metal" ]; then
-            cp "whisper.cpp/ggml-metal.metal" "$OUT/share/whisper-cpp/ggml-metal.metal"
-          else
-            echo "ERROR: ggml-metal.metal not found"
-            find whisper.cpp -maxdepth 4 -type f -name "ggml-metal.metal" -print || true
-            exit 1
-          fi
-
-          chmod +x "$OUT/x86_64/whisper-cli"
-          file "$OUT/x86_64/whisper-cli" || true
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: autolab-whisper-macos-x86_64
           path: dist
           if-no-files-found: error
