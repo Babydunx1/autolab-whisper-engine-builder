@@ -26,14 +26,16 @@ jobs:
           cd whisper.cpp
           git rev-parse HEAD
 
-      - name: Configure (Metal enabled)
+      - name: Configure (Metal enabled + Static)
         run: |
           cd whisper.cpp
           rm -rf build
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DGGML_USE_METAL=ON \
-            -DCMAKE_OSX_ARCHITECTURES=arm64
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DGGML_METAL_EMBED_LIBRARY=ON
 
       - name: Build whisper-cli
         run: |
@@ -59,7 +61,7 @@ jobs:
             exit 1
           fi
 
-          # 2) metal resource (upstream path moved; probe multiple locations)
+          # 2) metal resource
           METAL=""
           CANDIDATES=(
             "whisper.cpp/ggml/src/ggml-metal/ggml-metal.metal"
@@ -75,12 +77,12 @@ jobs:
           done
 
           if [ -z "$METAL" ]; then
-            echo "ERROR: ggml-metal.metal not found. Searching..."
+            # If embedded, we might not need it, but let's try to find it anyway
+            echo "WARNING: ggml-metal.metal not found explicitly."
             find whisper.cpp -maxdepth 8 -type f -name "ggml-metal.metal" -print || true
-            exit 1
+          else
+            cp "$METAL" "$OUT/share/whisper-cpp/ggml-metal.metal"
           fi
-
-          cp "$METAL" "$OUT/share/whisper-cpp/ggml-metal.metal"
 
           chmod +x "$OUT/arm64/whisper-cli"
 
