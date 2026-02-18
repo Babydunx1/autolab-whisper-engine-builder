@@ -6,7 +6,6 @@ on:
 jobs:
   build_intel:
     name: macOS x86_64 (Cross-Compile)
-    # ใช้ macos-latest (ซึ่งเป็น ARM64) แต่เราจะสั่งให้มันบิ้วเป็น x86_64 แทน
     runs-on: macos-latest
 
     steps:
@@ -18,34 +17,35 @@ jobs:
           rm -rf whisper.cpp
           git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
 
-      - name: Configure (Cross-Compile to Intel x86_64)
+      - name: Configure (Cross-Compile Fix)
         run: |
-          # หัวใจสำคัญคือ -DCMAKE_OSX_ARCHITECTURES=x86_64
-          # แม้รันบนเครื่อง ARM แต่จะบิ้วออกมาเป็น Intel ครับ
+          # แก้ปัญหา error: unknown target CPU โดยการปิด NATIVE optimization
+          # และบังคับสถาปัตยกรรม Intel ให้เด็ดขาด
           cmake -S whisper.cpp -B whisper.cpp/build \
             -DCMAKE_BUILD_TYPE=Release \
             -DGGML_METAL=ON \
+            -DGGML_NATIVE=OFF \
+            -DGGML_AVX=ON \
+            -DGGML_AVX2=ON \
+            -DGGML_FMA=ON \
+            -DGGML_F16C=ON \
             -DCMAKE_OSX_ARCHITECTURES=x86_64
 
       - name: Build whisper-cli
         run: |
           cmake --build whisper.cpp/build --config Release -j 4
 
-      - name: Verify binary arch (must be x86_64)
+      - name: Verify binary arch
         run: |
-          # ตรวจสอบว่าไฟล์ที่ได้เป็น Intel (x86_64) จริงไหม
           file whisper.cpp/build/bin/whisper-cli
           file whisper.cpp/build/bin/whisper-cli | grep -qi "x86_64"
 
-      - name: Prepare artifact (x64 layout)
+      - name: Prepare artifact
         run: |
           rm -rf out
           mkdir -p out/x64/share/whisper-cpp
-
           cp whisper.cpp/build/bin/whisper-cli out/x64/whisper-cli
           chmod +x out/x64/whisper-cli
-
-          # ย้ายไฟล์ Metal Shader ไปเก็บไว้
           cp whisper.cpp/ggml/src/ggml-metal/ggml-metal.metal out/x64/share/whisper-cpp/ggml-metal.metal
 
       - name: Upload artifact
