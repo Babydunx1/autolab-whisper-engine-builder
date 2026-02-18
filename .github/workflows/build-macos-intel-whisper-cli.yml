@@ -5,9 +5,9 @@ on:
 
 jobs:
   build_intel:
-    name: macOS x86_64 (Intel)
-    # ใช้ macos-13 เพราะเป็น Runner ที่เป็น Intel โดยตรง
-    runs-on: macos-13
+    name: macOS x86_64 (Cross-Compile)
+    # ใช้ macos-latest (ซึ่งเป็น ARM64) แต่เราจะสั่งให้มันบิ้วเป็น x86_64 แทน
+    runs-on: macos-latest
 
     steps:
       - name: Checkout (builder repo)
@@ -18,9 +18,10 @@ jobs:
           rm -rf whisper.cpp
           git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
 
-      - name: Configure (Force x86_64 & Metal)
+      - name: Configure (Cross-Compile to Intel x86_64)
         run: |
-          # เพิ่ม -DCMAKE_OSX_ARCHITECTURES=x86_64 เพื่อบังคับเป็น Intel
+          # หัวใจสำคัญคือ -DCMAKE_OSX_ARCHITECTURES=x86_64
+          # แม้รันบนเครื่อง ARM แต่จะบิ้วออกมาเป็น Intel ครับ
           cmake -S whisper.cpp -B whisper.cpp/build \
             -DCMAKE_BUILD_TYPE=Release \
             -DGGML_METAL=ON \
@@ -28,11 +29,11 @@ jobs:
 
       - name: Build whisper-cli
         run: |
-          cmake --build whisper.cpp/build --config Release -j 2
+          cmake --build whisper.cpp/build --config Release -j 4
 
       - name: Verify binary arch (must be x86_64)
         run: |
-          # ตรวจสอบว่าไฟล์ที่ได้เป็น Intel จริงไหม
+          # ตรวจสอบว่าไฟล์ที่ได้เป็น Intel (x86_64) จริงไหม
           file whisper.cpp/build/bin/whisper-cli
           file whisper.cpp/build/bin/whisper-cli | grep -qi "x86_64"
 
@@ -44,11 +45,8 @@ jobs:
           cp whisper.cpp/build/bin/whisper-cli out/x64/whisper-cli
           chmod +x out/x64/whisper-cli
 
-          # ย้ายไฟล์ Metal Shader ไปเก็บไว้ที่ที่โปรแกรมจะหาเจอ
+          # ย้ายไฟล์ Metal Shader ไปเก็บไว้
           cp whisper.cpp/ggml/src/ggml-metal/ggml-metal.metal out/x64/share/whisper-cpp/ggml-metal.metal
-
-          echo "Artifact tree:"
-          find out -maxdepth 4 -type f -print
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
