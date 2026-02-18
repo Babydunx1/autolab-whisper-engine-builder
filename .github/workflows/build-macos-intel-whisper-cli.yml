@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-    build_intel:
+  build_intel:
     name: macOS x86_64 (Cross-Compile)
     runs-on: macos-latest
 
@@ -47,7 +47,11 @@ jobs:
           mkdir -p out/x64/share/whisper-cpp
           cp whisper.cpp/build/bin/whisper-cli out/x64/whisper-cli
           chmod +x out/x64/whisper-cli
-          cp whisper.cpp/ggml/src/ggml-metal/ggml-metal.metal out/x64/share/whisper-cpp/ggml-metal.metal
+          # Copy metal file if it exists (might be needed even for Intel if Metal is on)
+          METAL_SRC="whisper.cpp/ggml/src/ggml-metal/ggml-metal.metal"
+          if [ -f "$METAL_SRC" ]; then
+            cp "$METAL_SRC" out/x64/share/whisper-cpp/ggml-metal.metal
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
