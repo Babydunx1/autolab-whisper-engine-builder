@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_intel:
+    build_intel:
     name: macOS x86_64 (Cross-Compile)
     runs-on: macos-latest
 
@@ -17,7 +17,7 @@ jobs:
           rm -rf whisper.cpp
           git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git
 
-      - name: Configure (Cross-Compile Fix)
+      - name: Configure (Cross-Compile Fix + Static)
         run: |
           # แก้ปัญหา error: unknown target CPU โดยการปิด NATIVE optimization
           # และบังคับสถาปัตยกรรม Intel ให้เด็ดขาด
@@ -29,7 +29,8 @@ jobs:
             -DGGML_AVX2=ON \
             -DGGML_FMA=ON \
             -DGGML_F16C=ON \
-            -DCMAKE_OSX_ARCHITECTURES=x86_64
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DBUILD_SHARED_LIBS=OFF
 
       - name: Build whisper-cli
         run: |
